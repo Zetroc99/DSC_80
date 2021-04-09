@@ -1,7 +1,9 @@
-
 import os
 import pandas as pd
 import numpy as np
+from datetime import timedelta
+import project01_helper as helper
+
 
 # ---------------------------------------------------------------------
 # Question #1
@@ -9,16 +11,16 @@ import numpy as np
 
 
 def get_assignment_names(grades):
-    '''
-    get_assignment_names takes in a dataframe like grades and returns 
+    """
+    get_assignment_names takes in a dataframe like grades and returns
     a dictionary with the following structure:
 
-    The keys are the general areas of the syllabus: lab, project, 
+    The keys are the general areas of the syllabus: lab, project,
     midterm, final, disc, checkpoint
 
-    The values are lists that contain the assignment names of that type. 
-    For example the lab assignments all have names of the form labXX where XX 
-    is a zero-padded two digit number. See the doctests for more details.    
+    The values are lists that contain the assignment names of that type.
+    For example the lab assignments all have names of the form labXX where XX
+    is a zero-padded two digit number. See the doctests for more details.
 
     :Example:
     >>> grades_fp = os.path.join('data', 'grades.csv')
@@ -30,9 +32,19 @@ def get_assignment_names(grades):
     True
     >>> 'project02' in names['project']
     True
-    '''
-    
-    return ...
+    """
+
+    keys = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
+    vals = []
+
+    vals.append(helper.get_category(grades, 'lab', 6))  # labs
+    vals.append(helper.get_category(grades, 'project', 10))  # projects
+    vals.append(helper.get_category(grades, 'Midterm', 10))  # midterms
+    vals.append(helper.get_category(grades, 'Final', 6))  # finals
+    vals.append(helper.get_category(grades, 'discussion', 13))  # discussions
+    vals.append(helper.get_category(grades, 'checkpoint', 23))  # checkpoints
+
+    return dict(zip(keys, vals))
 
 
 # ---------------------------------------------------------------------
@@ -41,11 +53,11 @@ def get_assignment_names(grades):
 
 
 def projects_total(grades):
-    '''
+    """
     projects_total that takes in grades and computes the total project grade
-    for the quarter according to the syllabus. 
+    for the quarter according to the syllabus.
     The output Series should contain values between 0 and 1.
-    
+
     :Example:
     >>> grades_fp = os.path.join('data', 'grades.csv')
     >>> grades = pd.read_csv(grades_fp)
@@ -54,8 +66,25 @@ def projects_total(grades):
     True
     >>> 0.7 < out.mean() < 0.9
     True
-    '''
-    return ...
+    """
+
+    # get all project string names and begin total and point counts at 0
+    projects = get_assignment_names(grades)['project']
+    total = pd.Series(np.zeros(grades.shape[0]))
+    points = pd.Series(np.zeros(grades.shape[0]))
+
+    for project in projects:  # loop through each projectXX
+        # get all columns associated with a projectXX
+        proj_grades = grades.filter(regex=project).columns
+        for string in proj_grades:  # loop through the col names
+            if 'Max Points' in string and 'checkpoint' not in string:
+                total += grades[string].fillna(0)
+            elif string in projects:
+                points += grades[string].fillna(0)
+            elif 'free_response' in string and len(string) < 24:
+                points += grades[string].fillna(0)
+
+    return points / total
 
 
 # ---------------------------------------------------------------------
@@ -82,7 +111,22 @@ def last_minute_submissions(grades):
     8
     """
 
-    return ...
+    labs = get_assignment_names(grades)['lab']
+    threshold = timedelta(minutes=30, seconds=0, hours=2)
+    due_time = timedelta(minutes=0, seconds=0, hours=0)
+    errors = []
+
+    for lab in labs:
+        lab_grades = grades.filter(regex=lab).columns
+        for string in lab_grades:
+            if 'Lateness' in string:
+                delta = pd.to_timedelta(grades[string])
+                num_errors = \
+                    grades.loc[(delta < threshold)].loc[
+                        (delta > due_time)].shape[0]
+                errors.append(num_errors)
+
+    return pd.Series(errors, index=labs)
 
 
 # ---------------------------------------------------------------------
@@ -103,8 +147,21 @@ def lateness_penalty(col):
     >>> set(out.unique()) <= {1.0, 0.9, 0.7, 0.4}
     True
     """
-        
-    return ...
+
+    times = pd.to_timedelta(col)
+    threshold = timedelta(minutes=30, seconds=0, hours=2)
+    one_week_penalty = timedelta(weeks=1)
+    two_week_penalty = timedelta(weeks=2)
+
+    one_week_late = lambda \
+            time: 0.9 if threshold < time < one_week_penalty else 1.0
+    two_week_late = lambda \
+            time: 0.7 if one_week_penalty < time < two_week_penalty else \
+        one_week_late(time)
+    very_late = lambda time: 0.4 if time > two_week_penalty else \
+        two_week_late(time)
+
+    return times.apply(very_late)
 
 
 # ---------------------------------------------------------------------
@@ -174,7 +231,7 @@ def total_points(grades):
     >>> 0.7 < out.mean() < 0.9
     True
     """
-        
+
     return ...
 
 
@@ -210,6 +267,7 @@ def letter_proportions(grades):
     """
 
     return ...
+
 
 # ---------------------------------------------------------------------
 # Question # 8
@@ -286,6 +344,7 @@ def short_answer():
 
     return ...
 
+
 # ---------------------------------------------------------------------
 # DO NOT TOUCH BELOW THIS LINE
 # IT'S FOR YOUR OWN BENEFIT!
@@ -316,12 +375,12 @@ def check_for_graded_elements():
     >>> check_for_graded_elements()
     True
     """
-    
+
     for q, elts in GRADED_FUNCTIONS.items():
         for elt in elts:
             if elt not in globals():
                 stmt = "YOU CHANGED A QUESTION THAT SHOULDN'T CHANGE! \
-                In %s, part %s is missing" %(q, elt)
+                In %s, part %s is missing" % (q, elt)
                 raise Exception(stmt)
 
     return True
