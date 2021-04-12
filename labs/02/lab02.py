@@ -22,19 +22,22 @@ def data_load(scores_fp):
     >>> isinstance(scores.index[0], int)
     False
     """
+
+    df = pd.read_csv(scores_fp)
+
     # a
-    ...
+    df = df.loc[:, df.columns != 'age']
 
     # b
-    ...
+    df = df.drop(columns=['sex'])
 
     # c
-    ...
+    df = df.rename(columns={'name': 'firstname', 'tries': 'attempts'})
 
     # d
-    ...
+    df = df.set_index('firstname')
 
-    return ...
+    return df
 
 
 def pass_fail(scores):
@@ -54,11 +57,13 @@ def pass_fail(scores):
     True
 
     """
+    bool1 = (scores.get('attempts') < 3) & (scores.get('highest_score') >= 50)
+    bool2 = (scores.get('attempts') < 6) & (scores.get('highest_score') >= 70)
+    bool3 = (scores.get('attempts') < 10) & (scores.get('highest_score') >= 90)
+    conditions = [bool1, bool2, bool3, True]
+    scores['pass'] = np.select(conditions, ['Yes', 'Yes', 'Yes', 'No'])
 
-
-    return ...
-
-
+    return scores
 
 def av_score(scores):
     """
@@ -75,8 +80,7 @@ def av_score(scores):
     True
     """
 
-    return ...
-
+    return scores.loc[scores['pass'] == 'Yes']['highest_score'].mean()
 
 
 def highest_score_name(scores):
@@ -93,7 +97,11 @@ def highest_score_name(scores):
     >>> len(next(iter(highest.items()))[1])
     3
     """
-    return ...
+    top_score = scores.loc[scores['highest_score'] == scores[
+                'highest_score'].max()]
+    highest = {scores['highest_score'].max(): [
+                name for name in top_score.index]}
+    return highest
 
 
 def idx_dup():
@@ -106,8 +114,7 @@ def idx_dup():
     >>> 1 <= ans <= 6
     True
     """
-    return ...
-
+    return 6
 
 
 # ---------------------------------------------------------------------
@@ -125,7 +132,6 @@ def trick_me():
     return ...
 
 
-
 def reason_dup():
     """
      Answers the question in the write-up
@@ -135,7 +141,6 @@ def reason_dup():
     True
     """
     return ...
-
 
 
 def trick_bool():
@@ -150,6 +155,7 @@ def trick_bool():
 
     """
     return ...
+
 
 def reason_bool():
     """
@@ -317,6 +323,7 @@ def super_hero_powers(powers):
 
     return ...
 
+
 # ---------------------------------------------------------------------
 # Question 7
 # ---------------------------------------------------------------------
@@ -361,6 +368,7 @@ def super_hero_stats():
     """
 
     return ...
+
 
 # ---------------------------------------------------------------------
 # Question 8
