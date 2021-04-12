@@ -187,7 +187,17 @@ def process_labs(grades):
     True
     """
 
-    return ...
+    labs = get_assignment_names(grades)['lab']
+    lab_scores = pd.DataFrame(columns=labs, index=grades.index)
+
+    for lab in labs:
+        lab_data = grades.filter(regex=lab)
+        col = grades[lab].fillna(0)
+        max_points = lab_data.filter(regex='Max').iloc[:, 0]
+        scores = (lateness_penalty(col) * col) / max_points
+        lab_scores[lab] = scores
+
+    return lab_scores
 
 
 # ---------------------------------------------------------------------
@@ -209,7 +219,10 @@ def lab_total(processed):
     True
     """
 
-    return ...
+    new_size = processed.shape[1] - 1
+    total_scores = lambda student: (student.sum() - student.min()) / new_size
+
+    return processed.apply(total_scores, axis=1)
 
 
 # ---------------------------------------------------------------------
