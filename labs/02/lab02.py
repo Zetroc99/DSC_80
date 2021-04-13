@@ -22,7 +22,6 @@ def data_load(scores_fp):
     >>> isinstance(scores.index[0], int)
     False
     """
-
     df = pd.read_csv(scores_fp)
 
     # a
@@ -55,7 +54,6 @@ def pass_fail(scores):
     3
     >>> scores.loc["Julia", "pass"]=='Yes'
     True
-
     """
     bool1 = (scores.get('attempts') < 3) & (scores.get('highest_score') >= 50)
     bool2 = (scores.get('attempts') < 6) & (scores.get('highest_score') >= 70)
@@ -64,6 +62,7 @@ def pass_fail(scores):
     scores['pass'] = np.select(conditions, ['Yes', 'Yes', 'Yes', 'No'])
 
     return scores
+
 
 def av_score(scores):
     """
@@ -79,7 +78,6 @@ def av_score(scores):
     >>> 91 < av < 92
     True
     """
-
     return scores.loc[scores['pass'] == 'Yes']['highest_score'].mean()
 
 
@@ -98,9 +96,9 @@ def highest_score_name(scores):
     3
     """
     top_score = scores.loc[scores['highest_score'] == scores[
-                'highest_score'].max()]
+        'highest_score'].max()]
     highest = {scores['highest_score'].max(): [
-                name for name in top_score.index]}
+        name for name in top_score.index]}
     return highest
 
 
@@ -129,7 +127,7 @@ def trick_me():
     >>> ans == 'A' or ans == 'B' or ans == "C"
     True
     """
-    return ...
+    return "C"
 
 
 def reason_dup():
@@ -140,7 +138,7 @@ def reason_dup():
     >>> ans == 'A' or ans == 'B' or ans == "C"
     True
     """
-    return ...
+    return "B"
 
 
 def trick_bool():
@@ -154,7 +152,7 @@ def trick_bool():
     True
 
     """
-    return ...
+    return ['D', 'J', 'M']
 
 
 def reason_bool():
@@ -166,7 +164,7 @@ def reason_bool():
     True
 
     """
-    return ...
+    return "B"
 
 
 # ---------------------------------------------------------------------
@@ -182,8 +180,10 @@ def change(x):
     >>> change(np.NaN) == 'MISSING'
     True
     """
-
-    return ...
+    if np.isnan(x):
+        return 'MISSING'
+    else:
+        return x
 
 
 def correct_replacement(nans):
@@ -197,7 +197,7 @@ def correct_replacement(nans):
     True
 
     """
-    return ...
+    return nans.applymap(change)
 
 
 # ---------------------------------------------------------------------
@@ -232,8 +232,16 @@ def population_stats(df):
     >>> (out['pct_nonnull'] == 1.0).all()
     True
     """
+    df = df.transpose()
 
-    return ...
+    num_nonnull = df.isnull().count(axis=1)
+    pct_nonnull = num_nonnull / df.count(axis=1)
+    num_distinct = df.nunique(axis=1, dropna=True)
+    pct_distinct = num_distinct / num_nonnull
+
+    return pd.DataFrame({'num_nonnull': num_nonnull, 'pct_nonnull': pct_nonnull,
+                         'num_distinct': num_distinct,
+                         'pct_distinct': pct_distinct})
 
 
 def most_common(df, N=10):
@@ -256,8 +264,15 @@ def most_common(df, N=10):
     >>> out['A_values'].isin(range(10)).all()
     True
     """
+    new_df = pd.DataFrame()
+    for col in df:
+        vals = df[col].value_counts()[:N].index
+        counts = df[col].value_counts()[:N].tolist()
 
-    return ...
+        new_df[col + '_values'] = vals
+        new_df[col + '_counts'] = counts
+
+    return new_df
 
 
 # ---------------------------------------------------------------------
@@ -274,7 +289,7 @@ def null_hypoth():
     True
     """
 
-    return ...
+    return [1, 3, 4]
 
 
 def simulate_null():
@@ -284,7 +299,7 @@ def simulate_null():
     True
     """
 
-    return ...
+    return np.random.choice([0,1], p=[0.99, 0.01], size=300)
 
 
 def estimate_p_val(N):
@@ -292,8 +307,12 @@ def estimate_p_val(N):
     >>> 0 < estimate_p_val(1000) < 0.1
     True
     """
+    test_stats = []
+    for _ in range(N):
+        stat = simulate_null().mean()
+        test_stats.append(stat)
 
-    return ...
+    return np.array(test_stats).mean()
 
 
 # ---------------------------------------------------------------------
