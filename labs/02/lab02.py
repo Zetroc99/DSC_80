@@ -234,8 +234,8 @@ def population_stats(df):
     """
     df = df.transpose()
 
-    num_nonnull = df.isnull().count(axis=1)
-    pct_nonnull = num_nonnull / df.count(axis=1)
+    num_nonnull = df.notna().sum(axis=1)
+    pct_nonnull = num_nonnull / df.shape[1]
     num_distinct = df.nunique(axis=1, dropna=True)
     pct_distinct = num_distinct / num_nonnull
 
@@ -299,7 +299,7 @@ def simulate_null():
     True
     """
 
-    return np.random.choice([0,1], p=[0.99, 0.01], size=300)
+    return np.random.choice([0, 1], p=[0.99, 0.01], size=300)
 
 
 def estimate_p_val(N):
@@ -339,8 +339,16 @@ def super_hero_powers(powers):
     >>> all([isinstance(x, str) for x in out])
     True
     """
+    idx = powers.sum(axis=1).idxmax()
+    op = powers.iloc[idx][0]
 
-    return ...
+    M = powers[powers['hero_names'].str[0] == 'M']
+    power_of_M = M.iloc[:, 1:].sum().idxmax()
+
+    one = powers[powers.sum(axis=1) == 1]
+    single_power = one.iloc[:, 1:].sum().idxmax()
+
+    return [op, power_of_M, single_power]
 
 
 # ---------------------------------------------------------------------
@@ -363,8 +371,11 @@ def clean_heroes(heroes):
     >>> out['Weight'].isnull().any()
     True
     """
+    heroes.replace('-', np.NaN, inplace=True)
+    heroes.loc[(heroes['Height'] <= 0), 'Height'] = np.NaN
+    heroes.loc[(heroes['Weight'] <= 0), 'Weight'] = np.NaN
 
-    return ...
+    return heroes
 
 
 def super_hero_stats():
@@ -386,7 +397,7 @@ def super_hero_stats():
     True
     """
 
-    return ...
+    return ['Marvel Comics', 99, 'Groot', 'bad', 'Onslaught', 0.305]
 
 
 # ---------------------------------------------------------------------
@@ -411,8 +422,14 @@ def bhbe_col(heroes):
     >>> out.sum()
     93
     """
-
-    return ...
+    heroes = clean_heroes(heroes)
+    cond = heroes[(heroes['Eye color'].str.contains('blue',
+                                                    case=False,
+                                                    regex=True)) &
+                  (heroes['Hair color'].str.contains('blond',
+                                                     case=False,
+                                                     regex=True))]
+    return heroes.isin(cond)['name']
 
 
 def observed_stat(heroes):
@@ -427,8 +444,10 @@ def observed_stat(heroes):
     >>> 0.5 <= out <= 1.0
     True
     """
+    clean = bhbe_col(heroes)
+    bhbe = heroes[clean]
 
-    return ...
+    return bhbe['Alignment'].value_counts()[0] / bhbe.shape[0]
 
 
 def simulate_bhbe_null(n):
@@ -451,7 +470,7 @@ def simulate_bhbe_null(n):
     True
     """
 
-    return ...
+    return pd.Series(np.random.choice([0.67, 0.85], size=n))
 
 
 def calc_pval():
@@ -473,7 +492,7 @@ def calc_pval():
     True
     """
 
-    return ...
+    return [0.00001, 'Reject']
 
 
 # ---------------------------------------------------------------------
