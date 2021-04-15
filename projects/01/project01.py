@@ -244,8 +244,20 @@ def total_points(grades):
     >>> 0.7 < out.mean() < 0.9
     True
     """
+    midterms = grades.filter(regex='Midterm')
+    final = grades.filter(regex='Final')
+    processed_labs = process_labs(grades)
 
-    return ...
+    proj_total = projects_total(grades)
+    labs_total = lab_total(processed_labs)
+    midterm_total = midterms['Midterm'] / midterms['Midterm - Max Points']
+    final_total = final['Final'] / final['Final - Max Points']
+    disc_total = helper.assignment_total(grades, 'disc')
+    cp_total = helper.assignment_total(grades, 'checkpoint')
+
+    return (labs_total * 0.2 + proj_total * 0.3 + cp_total * 0.025 +
+            disc_total * 0.025 + midterm_total * 0.15 +
+            final_total * 0.3).fillna(0)
 
 
 def final_grades(total):
@@ -259,6 +271,7 @@ def final_grades(total):
     >>> np.all(out == ['A', 'B', 'F'])
     True
     """
+    #if total[]
 
     return ...
 
