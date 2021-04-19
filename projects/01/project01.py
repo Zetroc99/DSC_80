@@ -70,8 +70,8 @@ def projects_total(grades):
 
     # get all project string names and begin total and point counts at 0
     projects = get_assignment_names(grades)['project']
-    total = pd.Series(np.zeros(grades.shape[0]))
-    points = pd.Series(np.zeros(grades.shape[0]))
+    total = pd.Series(np.zeros(grades.shape[0]), index=grades.index)
+    points = pd.Series(np.zeros(grades.shape[0]), index=grades.index)
 
     for project in projects:  # loop through each projectXX
         # get all columns associated with a projectXX
@@ -187,6 +187,7 @@ def process_labs(grades):
     True
     """
 
+    grades = grades.fillna(0)
     labs = get_assignment_names(grades)['lab']
     lab_scores = pd.DataFrame(columns=labs, index=grades.index)
 
@@ -255,9 +256,9 @@ def total_points(grades):
     disc_total = helper.assignment_total(grades, 'disc')
     cp_total = helper.assignment_total(grades, 'checkpoint')
 
-    return (labs_total * 0.2 + proj_total * 0.3 + cp_total * 0.025 +
-            disc_total * 0.025 + midterm_total * 0.15 +
-            final_total * 0.3).fillna(0)
+    return pd.Series(labs_total * 0.2 + proj_total * 0.3 + cp_total * 0.025 +
+                     disc_total * 0.025 + midterm_total * 0.15 +
+                     final_total * 0.3, index=grades.index).fillna(0)
 
 
 def final_grades(total):
@@ -271,9 +272,8 @@ def final_grades(total):
     >>> np.all(out == ['A', 'B', 'F'])
     True
     """
-    #if total[]
 
-    return ...
+    return total.apply(helper.grade_letter)
 
 
 def letter_proportions(grades):
@@ -291,8 +291,9 @@ def letter_proportions(grades):
     >>> out.sum() == 1.0
     True
     """
+    letter_grades = final_grades(total_points(grades))
 
-    return ...
+    return letter_grades.value_counts() / grades.shape[0]
 
 
 # ---------------------------------------------------------------------
@@ -314,8 +315,17 @@ def simulate_pval(grades, N):
     >>> 0 <= out <= 0.1
     True
     """
+    SR_grades = grades[grades['Level'] == 'SR']
+    stats = np.array([])
+    obs_stat = np.round(total_points(SR_grades).mean(), 2)
+    total = total_points(grades)
 
-    return ...
+    for _ in range(N):
+        test_stat = np.round(total.sample(grades.shape[0]).mean(), 2)
+        stats = np.append(stats, test_stat)
+    p_val = np.count_nonzero(stats < obs_stat) / N
+
+    return p_val
 
 
 # ---------------------------------------------------------------------
@@ -338,8 +348,23 @@ def total_points_with_noise(grades):
     >>> 0.7 < out.mean() < 0.9
     True
     """
+    midterms = grades.filter(regex='Midterm')
+    final = grades.filter(regex='Final')
+    processed_labs = process_labs(grades)
+    noise = np.random.normal(0, 0.02, size=grades.shape[0])
 
-    return ...
+    proj_total = projects_total(grades) + noise
+    labs_total = lab_total(processed_labs) + noise
+    midterm_total = (midterms['Midterm'] / midterms[
+        'Midterm - Max Points']) + noise
+    final_total = (final['Final'] / final['Final - Max Points']) + noise
+    disc_total = helper.assignment_total(grades, 'disc') + noise
+    cp_total = helper.assignment_total(grades, 'checkpoint') + noise
+
+    return np.clip(pd.Series(labs_total * 0.2 + proj_total * 0.3 + cp_total *
+                             0.025 + disc_total * 0.025 + midterm_total * 0.15 +
+                             final_total * 0.3, index=grades.index).fillna(0),
+                   0, 1)
 
 
 # ---------------------------------------------------------------------
@@ -368,7 +393,7 @@ def short_answer():
     True
     """
 
-    return ...
+    return [0.015, 59.81, [57.38, 65.23], 0.166, [False, False]]
 
 
 # ---------------------------------------------------------------------

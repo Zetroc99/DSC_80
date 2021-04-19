@@ -26,10 +26,10 @@ def get_category(grades, category, buffer):
     return list(assignment.columns)
 
 
-def assignment_total(grades, assignment):  ## Doc Test
+def assignment_total(grades, assignment):
     """
-    projects_total that takes in grades and computes the total project grade
-    for the quarter according to the syllabus.
+    assignment_total that takes in grades and computes the total assignment
+    grade for the quarter according to the syllabus.
     The output Series should contain values between 0 and 1.
 
     :Example:
@@ -37,8 +37,8 @@ def assignment_total(grades, assignment):  ## Doc Test
 
     # get all assignment string names and begin total and point counts at 0
     assignments = proj.get_assignment_names(grades)[assignment]
-    total = pd.Series(np.zeros(grades.shape[0]))
-    points = pd.Series(np.zeros(grades.shape[0]))
+    total = pd.Series(np.zeros(grades.shape[0]), index=grades.index)
+    points = pd.Series(np.zeros(grades.shape[0]), index=grades.index)
 
     for assignment in assignments:  # loop through each assignment
         # get all columns associated with a assignment
@@ -50,3 +50,16 @@ def assignment_total(grades, assignment):  ## Doc Test
                 points += grades[string].fillna(0)
 
     return points / total
+
+
+def grade_letter(grade):
+    if grade >= 0.9:
+        return 'A'
+    elif 0.9 > grade >= 0.8:
+        return 'B'
+    elif 0.8 > grade >= 0.7:
+        return 'C'
+    elif 0.7 > grade >= 0.6:
+        return 'D'
+    else:
+        return 'F'
