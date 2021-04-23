@@ -286,8 +286,11 @@ def most_popular_procedure(pets, procedure_history):
     >>> isinstance(out,str)
     True
     """
+    pet_id = pets.get('PetID')
+    most_popular = procedure_history[procedure_history['PetID'].isin(
+        pet_id)].groupby('ProcedureType').count().idxmax()[0]
 
-    return ...
+    return most_popular
 
 
 def pet_name_by_owner(owners, pets):
@@ -307,8 +310,11 @@ def pet_name_by_owner(owners, pets):
     >>> 'Cookie' in out.values
     True
     """
+    merged = pets.merge(owners, on='OwnerID', suffixes=(None, '_First'))
 
-    return ...
+    return merged.groupby(['OwnerID', 'Name_First'])['Name'].apply(
+        ','.join).apply(lambda x: x.split(',') if ',' in x else x).reset_index(
+        level='OwnerID')['Name']
 
 
 def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
@@ -328,8 +334,16 @@ def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
     >>> set(out.index) <= set(owners['City'])
     True
     """
+    city_owner = owners[['City', 'OwnerID']]
+    pets_owner = pets[['PetID', 'OwnerID']]
+    proc_price = procedure_detail[
+        ['ProcedureType', 'ProcedureSubCode', 'Price']]
+    pet_proc = procedure_history[['PetID', 'ProcedureType', 'ProcedureSubCode']]
+    by_city = city_owner.merge(pets_owner, on='OwnerID').merge(pet_proc,
+                                                               on='PetID').merge(
+        proc_price, on=['ProcedureType', 'ProcedureSubCode'])
 
-    return ...
+    return by_city.groupby('City').sum()['Price']
 
 
 # ---------------------------------------------------------------------
