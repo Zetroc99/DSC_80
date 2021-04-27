@@ -22,8 +22,10 @@ def latest_login(login):
     >>> result.loc[381, "Time"].hour > 12
     True
     """
+    copy = login.copy()
+    copy['Time'] = pd.to_datetime(copy['Time']).dt.time
 
-    return ...
+    return copy.groupby('Login Id').max()
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -44,8 +46,11 @@ def smallest_ellapsed(login):
     >>> 18 < result.loc[1233, "Time"].days < 23
     True
     """
+    copy = login.copy()
+    copy['Time'] = pd.to_datetime(copy['Time'])
+    sort = copy.set_index('Login Id').sort_values(['Login Id', 'Time'])
 
-    return ...
+    return sort.groupby('Login Id').diff().dropna().groupby('Login Id').min()
 
 
 # ---------------------------------------------------------------------
