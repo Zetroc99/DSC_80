@@ -1,8 +1,8 @@
-
 import os
 
 import pandas as pd
 import numpy as np
+
 
 # ---------------------------------------------------------------------
 # Question # 1
@@ -26,6 +26,7 @@ def latest_login(login):
     copy['Time'] = pd.to_datetime(copy['Time']).dt.time
 
     return copy.groupby('Login Id').max()
+
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -72,7 +73,7 @@ def total_seller(df):
     True
 
     """
-    
+
     return df.pivot_table(index='Name', values='Total', aggfunc='sum')
 
 
@@ -88,8 +89,9 @@ def product_name(df):
     >>> out.loc["pen"].isnull().sum()
     0
     """
-    
+
     return df.pivot_table(index=['Product'], columns=['Name'], aggfunc='sum')
+
 
 def count_product(df):
     """
@@ -103,7 +105,7 @@ def count_product(df):
     >>> out.size
     70
     """
-    
+
     return df.pivot_table(index=['Product', 'Name'], columns=['Date'],
                           aggfunc='count', fill_value=0)
 
@@ -120,8 +122,15 @@ def total_by_month(df):
     >>> out.shape[1]
     5
     """
-    
-    return ...
+    copy = df.copy()
+
+    copy = copy.rename(columns={'Date': 'Month'})
+    copy['Month'] = pd.to_datetime(copy['Month']).dt.month_name()
+
+    return copy.pivot_table(index=['Name', 'Product'],
+                            columns='Month',
+                            aggfunc='count', fill_value=0)
+
 
 # ---------------------------------------------------------------------
 # Question # 4
@@ -142,7 +151,7 @@ def diff_of_means(data, col='orange'):
     >>> 0 <= out
     True
     """
-    
+
     return ...
 
 
@@ -162,7 +171,7 @@ def simulate_null(data, col='orange'):
     >>> 0 <= out <= 1.0
     True
     """
-    
+
     return ...
 
 
@@ -182,7 +191,7 @@ def pval_orange(data, col='orange'):
     >>> 0 <= pval <= 0.1
     True
     """
-    
+
     return ...
 
 
@@ -210,7 +219,7 @@ def ordered_colors():
     """
 
     return ...
-    
+
 
 # ---------------------------------------------------------------------
 # Question # 6
@@ -228,8 +237,9 @@ def same_color_distribution():
     >>> out[1] in ['Fail to Reject', 'Reject']
     True
     """
-    
+
     return ...
+
 
 # ---------------------------------------------------------------------
 # Question # 7
@@ -268,6 +278,7 @@ def after_purchase():
 
     return ...
 
+
 # ---------------------------------------------------------------------
 # Question # 9
 # ---------------------------------------------------------------------
@@ -288,6 +299,7 @@ def multiple_choice():
     """
 
     return ...
+
 
 # ---------------------------------------------------------------------
 # DO NOT TOUCH BELOW THIS LINE
@@ -318,7 +330,7 @@ def check_for_graded_elements():
     >>> check_for_graded_elements()
     True
     """
-    
+
     for q, elts in GRADED_FUNCTIONS.items():
         for elt in elts:
             if elt not in globals():
