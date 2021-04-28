@@ -73,7 +73,7 @@ def total_seller(df):
 
     """
     
-    return ...
+    return df.pivot_table(index='Name', values='Total', aggfunc='sum')
 
 
 def product_name(df):
@@ -89,7 +89,7 @@ def product_name(df):
     0
     """
     
-    return ...
+    return df.pivot_table(index=['Product'], columns=['Name'], aggfunc='sum')
 
 def count_product(df):
     """
@@ -104,7 +104,8 @@ def count_product(df):
     70
     """
     
-    return ...
+    return df.pivot_table(index=['Product', 'Name'], columns=['Date'],
+                          aggfunc='count', fill_value=0)
 
 
 def total_by_month(df):
