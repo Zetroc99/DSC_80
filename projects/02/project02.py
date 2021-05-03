@@ -235,9 +235,9 @@ def basic_stats(flights):
             'AIRLINE'].max()
 
     top_months_from_SD = from_SD.groupby('MONTH').count(
-        ).sort_values('YEAR',ascending=False).iloc[:3].index
+    ).sort_values('YEAR', ascending=False).iloc[:3].index
     top_months_to_SD = to_SD.groupby('MONTH').count(
-        ).sort_values('YEAR', ascending=False).iloc[:3].index
+    ).sort_values('YEAR', ascending=False).iloc[:3].index
 
     return pd.DataFrame({'count': [count_to_SD, count_from_SD],
                          'mean_delay': [mean_to_SD, mean_from_SD],
@@ -277,11 +277,11 @@ def depart_arrive_stats(flights):
     True
     """
     late1 = len(flights[(flights['DEPARTURE_DELAY'] > 0) & (
-                flights['ARRIVAL_DELAY'] <= 0)]) / len(flights)
+            flights['ARRIVAL_DELAY'] <= 0)]) / len(flights)
     late2 = len(flights[(flights['DEPARTURE_DELAY'] <= 0) & (
-                flights['ARRIVAL_DELAY'] > 0)]) / len(flights)
+            flights['ARRIVAL_DELAY'] > 0)]) / len(flights)
     late3 = len(flights[(flights['DEPARTURE_DELAY'] > 0) & (
-                flights['ARRIVAL_DELAY'] > 0)]) / len(flights)
+            flights['ARRIVAL_DELAY'] > 0)]) / len(flights)
 
     return pd.Series({'late1': late1, 'late2': late2, 'late3': late3})
 
@@ -360,6 +360,7 @@ def mean_by_airline_dow(flights):
     return means.pivot(index='DAY_OF_WEEK', columns='AIRLINE',
                        values='ARRIVAL_DELAY')
 
+
 # ---------------------------------------------------------------------
 # Question #6
 # ---------------------------------------------------------------------
@@ -379,7 +380,9 @@ def predict_null_arrival_delay(row):
     >>> set(out.unique()) - set([True, False]) == set()
     True
     """
-    return ...
+    if np.isnan(row['ELAPSED_TIME']):
+        return True
+    return False
 
 
 def predict_null_airline_delay(row):
@@ -399,8 +402,9 @@ def predict_null_airline_delay(row):
     >>> set(out.unique()) - set([True, False]) == set()
     True
     """
-
-    return ...
+    if np.isnan(row['WEATHER_DELAY']):
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------
@@ -420,8 +424,36 @@ def perm4missing(flights, col, N):
     >>> 0 <= out <= 1
     True
     """
+    pt = (
+        flights.assign(is_null=flights.DEPARTURE_DELAY.isnull())
+            .pivot_table(index='is_null', columns=col, aggfunc='size')
+    )
+    distr = (pt.T / pt.sum(axis=1)).T
+    obs = distr.diff().iloc[-1].abs().sum() / 2
 
-    return ...
+    tvds = []
+    for _ in range(1000):
+        shuffled_col = (
+            flights[col]
+                .sample(replace=False, frac=1)
+                .reset_index(drop=True)
+        )
+        shuffled = (
+            flights
+                .assign(**{
+                col: shuffled_col,
+                'is_null': flights['DEPARTURE_DELAY'].isnull()
+            })
+        )
+        shuffled = (
+            shuffled
+                .pivot_table(index='is_null', columns=col, aggfunc='size')
+                .apply(lambda x: x / x.sum(), axis=1)
+        )
+        tvd = shuffled.diff().iloc[-1].abs().sum() / 2
+        tvds.append(tvd)
+
+    return np.mean(tvds > obs)
 
 
 def dependent_cols():
@@ -438,7 +470,7 @@ def dependent_cols():
     True
     """
 
-    return ...
+    return ['DIVERTED', 'CANCELLATION_REASON']
 
 
 def missing_types():
@@ -459,8 +491,10 @@ def missing_types():
     >>> set(out.unique()) - set(['MD', 'MCAR', 'MAR', 'NMAR', np.NaN]) == set()
     True
     """
+    idx = ['CANCELLED', 'CANCELLATION_REASON', 'TAIL_NUMBER', 'ARRIVAL_TIME']
+    ans = [np.NaN, 'NMAR', 'MAR', 'MD']
 
-    return ...
+    return pd.Series(index=idx, data=ans)
 
 
 # ---------------------------------------------------------------------
@@ -487,8 +521,20 @@ def prop_delayed_by_airline(jb_sw):
     >>> len(out.columns) == 1
     True
     """
+    airports = 'ABQ, BDL, BUR, DCA, MSY, PBI, PHX, RNO, SJC, SLC'.split(', ')
+    filtered = jb_sw[jb_sw['ORIGIN_AIRPORT'].isin(airports)]
+    total = filtered.pivot_table(index='AIRLINE',
+                                 columns='ORIGIN_AIRPORT',
+                                 aggfunc='size').sum(axis=1)
+    delay = (
+        filtered[filtered['DEPARTURE_DELAY'] > 0]
+            .pivot_table(index='AIRLINE',
+                         columns='ORIGIN_AIRPORT',
+                         aggfunc='size')
+            .sum(axis=1)
+    )
 
-    return ...
+    return (delay / total).to_frame()
 
 
 def prop_delayed_by_airline_airport(jb_sw):
@@ -512,8 +558,19 @@ def prop_delayed_by_airline_airport(jb_sw):
     >>> len(out.columns) == 6
     True
     """
+    airports = 'ABQ, BDL, BUR, DCA, MSY, PBI, PHX, RNO, SJC, SLC'.split(', ')
+    filtered = jb_sw[jb_sw['ORIGIN_AIRPORT'].isin(airports)]
+    total = filtered.pivot_table(index='AIRLINE',
+                                 columns='ORIGIN_AIRPORT',
+                                 aggfunc='size')
+    delayed = (
+        filtered[filtered['DEPARTURE_DELAY'] > 0]
+            .pivot_table(index='AIRLINE',
+                         columns='ORIGIN_AIRPORT',
+                         aggfunc='size')
+    )
 
-    return ...
+    return delayed / total
 
 
 # ---------------------------------------------------------------------
@@ -539,8 +596,23 @@ def verify_simpson(df, group1, group2, occur):
     >>> verify_simpson(df, 1, 2, 3)
     False
     """
+    totals = df.pivot_table(index=group2, columns=group1,
+                            aggfunc='size')
+    delays = df[df[occur] == 1].pivot_table(index=group2,
+                                            columns=group1,
+                                            aggfunc='size')
+    by_ap = (delays / totals)
+    t = df.pivot_table(index=group1, columns=group2,
+                       aggfunc='size').sum(axis=1)
+    d = df[df[occur] == 1].pivot_table(index=group1,
+                                       columns=group2,
+                                       aggfunc='size').sum(axis=1)
 
-    return ...
+    both = (d / t).to_frame(name='All').T
+    table = by_ap.append(both)
+
+    return np.all(table.T.iloc[0] > table.T.iloc[1]) or \
+           np.all(table.T.iloc[0] < table.T.iloc[1])
 
 
 # ---------------------------------------------------------------------
