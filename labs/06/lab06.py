@@ -4,6 +4,7 @@ import numpy as np
 import requests
 import bs4
 import json
+from collections import deque
 
 
 # ---------------------------------------------------------------------
@@ -43,7 +44,32 @@ def extract_book_links(text):
     >>> out[1] == url
     True
     """
-    return ...
+    def _rating_req(book):
+        star_rec = ['four', 'five']
+        if book.find('p').attrs['class'][1].lower() in star_rec:
+            return True
+        return False
+
+    def _under_50(book):
+        price_str = book.find('p', attrs={'class': 'price_color'}).text
+        price_float = float("".join(filter(
+            lambda x: x in '0123456789.', price_str)))
+        if price_float < 50:
+            return True
+        return False
+
+    def _find_url(book):
+        return book.find('a').attrs['href']
+
+    bs = bs4.BeautifulSoup(text, features='lxml')
+    books = bs.find_all('article', attrs={'class': 'product_pod'})
+    urls = []
+
+    for book in books:
+        if _rating_req(book) and _under_50(book):
+            urls.append(_find_url(book))
+
+    return urls
 
 
 def get_product_info(text, categories):
@@ -58,7 +84,33 @@ def get_product_info(text, categories):
     >>> out['Rating']
     'Two'
     """
-    return ...
+    bs = bs4.BeautifulSoup(text, features='lxml')
+    category = bs.find('ul', attrs={'class': 'breadcrumb'}).find_all('a')[
+        -1].text
+
+    if category in categories:
+        prod_info = bs.find('table',
+                            attrs={'class': 'table table-striped'}).find_all(
+            'td')
+        row = {
+            'Availability': prod_info[-2].text,
+            'Category': category,
+            'Description':
+                bs.find('article', attrs={'class': 'product_page'}).find_all(
+                    'p')[3].text,
+            'Number of reviews': prod_info[-1].text,
+            'Price (excl. tax)': prod_info[2].text,
+            'Price (incl. tax)': prod_info[3].text,
+            'Product Type': prod_info[1].text,
+            'Rating':
+                bs.find('p', attrs={'class': 'star-rating'}).attrs['class'][-1],
+            'Tax': prod_info[4].text,
+            'Title': bs.find('div', attrs={'class': 'product_main'}).find(
+                'h1').text,
+            'UPC': prod_info[0].text
+        }
+        return row
+    return None
 
 
 def scrape_books(k, categories):
@@ -76,7 +128,36 @@ def scrape_books(k, categories):
     >>> out['Title'][0] == 'Sharp Objects'
     True
     """
-    return ...
+    f = 'http://books.toscrape.com/'
+    text = requests.get(f).text
+
+    page_dicts = []
+
+    for i in range(k):
+        # search page w/ extract
+        urls = extract_book_links(text)
+        for url in urls:
+            # get product info on page
+            if i > 0:
+                nextfp = os.path.join(f, 'catalogue/', url)
+            else:
+                nextfp = os.path.join(f, url)
+            book = requests.get(nextfp).text
+            info = get_product_info(book, categories)
+            if info == None:
+                continue
+            page_dicts.append(info)
+
+        bs = bs4.BeautifulSoup(text, 'lxml')
+        next_page = bs.find('li', attrs={'class': 'next'}).find('a').attrs[
+            'href']
+        if i > 0:
+            next_k = os.path.join(f, 'catalogue/', next_page)
+        else:
+            next_k = os.path.join(f, next_page)
+        text = requests.get(next_k).text
+
+    return pd.DataFrame(page_dicts)
 
 
 # ---------------------------------------------------------------------
@@ -94,7 +175,14 @@ def stock_history(ticker, year, month):
     >>> history.label.iloc[-1]
     'June 03, 19'
     """
-    return ...
+    end_date = pd.date_range(start=f'{year}/{month}/{1}', periods=1, freq='M')[
+        0]
+    stock_endpoint = f'https://financialmodelingprep.com/api/v3/historical' \
+                     f'-price-full/{ticker}?from={year}-{month:02}-01&to=' \
+                     f'{year}-{month:02}-{end_date.day:02}&apikey=fff40968' \
+                     f'8b414e760842828d29517a91'
+    response = requests.get(stock_endpoint).json()
+    return pd.DataFrame(response['historical'])
 
 
 def stock_stats(history):
@@ -111,7 +199,27 @@ def stock_stats(history):
     >>> float(stats[1][:-1]) > 1
     True
     """
-    return ...
+    per_change = (
+                (history.iloc[0]['close'] - history.iloc[-1][
+                    'open']) / history.iloc[-1]['open'] * 100)
+    if per_change > 0:
+        per_change = str(per_change)
+        per_change = '+' + per_change
+    else:
+        per_change = str(per_change)
+        per_change = '-' + per_change
+    p= per_change.split('.')
+    percent = p[0] + '.' + p[1][:2] + '%'
+
+    def transaction_vol(row):
+        return ((row['low'] + row['high']) / 2) * row['volume']
+
+    total = history.apply(transaction_vol, axis=1).sum() / 1_000_000_000
+    total = str(total)
+    t = total.split('.')
+    ttv = t[0] + '.' + t[1][:2] + 'B'
+
+    return percent, ttv
 
 
 # ---------------------------------------------------------------------
@@ -129,7 +237,32 @@ def get_comments(storyid):
     >>> out.loc[5, 'time'].day
     31
     """
-    return ...
+    news_endpoint = f"https://hacker-news.firebaseio.com/v0/item/{storyid}.json"
+    response = requests.get(news_endpoint).json()
+    comments = []
+
+    def dfs(graph, data=None, q=None):
+        if q is None:
+            q = deque()
+        if 'dead' in graph:
+            q.append(graph)
+        if 'kids' in graph:
+            users = graph['kids']
+            q.append(graph)
+            for user_id in users:
+                end_point = f"https://hacker-news.firebaseio.com/v0/item/{user_id}.json"
+                new_graph = requests.get(end_point).json()
+                dfs(new_graph, data, q)
+                q.append(new_graph)
+        if 'dead' not in graph:
+            data.append(q.popleft())
+
+    dfs(response, comments)
+    df = pd.DataFrame(comments).iloc[1:].reset_index()\
+        .filter(items=['id', 'by', 'parent', 'text', 'time'])
+    df['time'] = df['time'].apply(lambda x: pd.to_datetime(x, unit='s'))
+
+    return df
 
 
 # ---------------------------------------------------------------------
