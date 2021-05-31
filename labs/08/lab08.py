@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 
-from sklearn.preprocessing import Binarizer, QuantileTransformer, FunctionTransformer
+from sklearn.preprocessing import Binarizer, QuantileTransformer, \
+    FunctionTransformer
+
 
 # ---------------------------------------------------------------------
 # Question # 1
@@ -21,7 +23,8 @@ def best_transformation():
     # take log and square root of the dataset
     # look at the fit of the regression line (and R^2)
 
-    return ...
+    return 1
+
 
 # ---------------------------------------------------------------------
 # Question # 2
@@ -42,8 +45,23 @@ def create_ordinal(df):
     >>> np.unique(out['ordinal_cut']).tolist() == [0, 1, 2, 3, 4]
     True
     """
-    
-    return ...
+    new_df = pd.DataFrame(index=df.index)
+
+    cut = df['cut'].unique()[::-1]
+    color = np.sort(df['color'].unique())[::-1]
+    clarity = ['I1', 'SI2', 'SI1', 'VS2', 'VS1', 'VVS2', 'VVS1', 'IF']
+
+    ord_cut = {y: x for (x, y) in enumerate(cut)}
+    new_df['ordinal_cut'] = df['cut'].replace(ord_cut)
+
+    ord_color = {y: x for (x, y) in enumerate(color)}
+    new_df['ordinal_color'] = df['color'].replace(ord_color)
+
+    ord_clarity = {y: x for (x, y) in enumerate(clarity)}
+    new_df['ordinal_clarity'] = df['clarity'].replace(ord_clarity)
+
+    return new_df
+
 
 # ---------------------------------------------------------------------
 # Question # 3
@@ -67,8 +85,16 @@ def create_one_hot(df):
     >>> out.isin([0,1]).all().all()
     True
     """
-    
-    return ...
+    df = df.copy()[['cut', 'color', 'clarity']]
+
+    for col in df.columns:
+        vals = df[col].unique()
+        for val in vals:
+            df['one_hot_' + col + '_' + val] = df[col].apply(
+                lambda x: 1 if x == val else 0)
+    df = df.drop(columns=['cut', 'color', 'clarity'])
+
+    return df
 
 
 def create_proportions(df):
@@ -87,8 +113,14 @@ def create_proportions(df):
     >>> ((out >= 0) & (out <= 1)).all().all()
     True
     """
+    df = df.copy()
+    for col in df[['cut', 'color', 'clarity']].columns:
+        props = df[col].value_counts() / df[
+            col].value_counts().sum()
+        df['proportion_' + col] = df[col].replace(props)
 
-    return ...
+    return df.filter(regex='proportion_')
+
 
 # ---------------------------------------------------------------------
 # Question # 4
@@ -112,8 +144,20 @@ def create_quadratics(df):
     >>> out.shape[1] == 15
     True
     """
-        
-    return ...
+    copy = df.copy()
+
+    numeric_copy = copy.select_dtypes(np.number).drop(columns=['price'])
+    cols = numeric_copy.columns
+    combinations = []
+
+    for i in range(len(cols)):
+        for j in range(len(cols)):
+            if (cols[j] + ' * ' + cols[i]) not in combinations and \
+                    cols[i] != cols[j]:
+                combinations.append(cols[i] + ' * ' + cols[j])
+                copy[cols[i] + ' * ' + cols[j]] = copy[cols[i]] * \
+                                                copy[cols[j]]
+    return copy.filter(regex='\*')
 
 
 # ---------------------------------------------------------------------
@@ -139,7 +183,9 @@ def comparing_performance():
 
     # create a model per variable => (variable, R^2, RMSE) table
 
-    return ...
+    return [0.8493305264354857, 1548.53, 'x', 'carat * x', 'color',
+            0.03190275041879371]
+
 
 # ---------------------------------------------------------------------
 # Question # 6, 7, 8
@@ -147,10 +193,10 @@ def comparing_performance():
 
 
 class TransformDiamonds(object):
-    
+
     def __init__(self, diamonds):
         self.data = diamonds
-        
+
     def transformCarat(self, data):
         """
         transformCarat takes in a dataframe like diamonds 
@@ -167,9 +213,9 @@ class TransformDiamonds(object):
         >>> transformed[0, 0] == 0
         True
         """
+        bi = Binarizer(threshold=1)
+        return bi.transform(data[['carat']])
 
-        return ...
-    
     def transform_to_quantile(self, data):
         """
         transform_to_quantiles takes in a dataframe like diamonds 
@@ -187,9 +233,12 @@ class TransformDiamonds(object):
         >>> np.isclose(transformed[1,0], 0, atol=1e-06)
         True
         """
+        X = data[['carat']]
+        qt = QuantileTransformer()
+        qt.fit(self.data[['carat']])
 
-        return ...
-    
+        return qt.transform(X)
+
     def transform_to_depth_pct(self, data):
         """
         transform_to_volume takes in a dataframe like diamonds 
@@ -206,7 +255,11 @@ class TransformDiamonds(object):
         True
         """
 
-        return ...
+        def per_depth(df):
+            return (df.z / ((df.x + df.y) / 2)) * 100
+
+        depth_per = FunctionTransformer(func=per_depth, validate=False)
+        return depth_per.transform(data)
 
 
 # ---------------------------------------------------------------------
@@ -235,12 +288,12 @@ def check_for_graded_elements():
     >>> check_for_graded_elements()
     True
     """
-    
+
     for q, elts in GRADED_FUNCTIONS.items():
         for elt in elts:
             if elt not in globals():
                 stmt = "YOU CHANGED A QUESTION THAT SHOULDN'T CHANGE! \
-                In %s, part %s is missing" %(q, elt)
+                In %s, part %s is missing" % (q, elt)
                 raise Exception(stmt)
 
     return True

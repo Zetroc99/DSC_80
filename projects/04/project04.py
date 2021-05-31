@@ -1,10 +1,10 @@
-
 import os
 import pandas as pd
 import numpy as np
 import requests
 import time
 import re
+
 
 # ---------------------------------------------------------------------
 # Question #1
@@ -30,9 +30,14 @@ def get_book(url):
     >>> book_string[:20] == '\\n\\n\\n\\n\\nProduced by Chu'
     True
     """
-    
-    return ...
-    
+    book = requests.get(url)
+    book_str = book.text.replace('\r\n', '\n')
+    s = re.search('(\*\*\* START.*)', book_str)  # START
+    e = re.search('(\*\*\* END.*)', book_str)  # END
+
+    return book_str[s.end(0):e.start(0)]
+
+
 # ---------------------------------------------------------------------
 # Question #2
 # ---------------------------------------------------------------------
@@ -63,9 +68,14 @@ def tokenize(book_string):
     >>> '(' in tokens
     True
     """
+    add_start_end = re.sub('(\n\n)+', ' \x03 \x02 ', book_string)
+    remove_whitespace = re.sub('\s+', ' ', add_start_end)
+    beginning = re.sub('\A', '\x02 ', remove_whitespace)
+    cleaned = re.sub('\Z', '\x03', beginning)
 
-    return ...
-    
+    return re.findall('[\w]+|\\x02|\\x03|[^\w\s]', cleaned)
+
+
 # ---------------------------------------------------------------------
 # Question #3
 # ---------------------------------------------------------------------
@@ -84,7 +94,7 @@ class UniformLM(object):
         self.mdl.
         """
         self.mdl = self.train(tokens)
-        
+
     def train(self, tokens):
         """
         Trains a uniform language model given a list of tokens.
@@ -102,9 +112,10 @@ class UniformLM(object):
         >>> (unif.mdl == 0.25).all()
         True
         """
+        token_series = pd.Series(tokens).value_counts()
 
-        return ...
-    
+        return token_series.apply(lambda x: 1 / len(token_series))
+
     def probability(self, words):
         """
         probability gives the probabiliy a sequence of words
@@ -121,9 +132,13 @@ class UniformLM(object):
         >>> unif.probability(('one', 'two')) == 0.0625
         True
         """
+        P = 1
+        for word in words:
+            if word not in self.mdl.index:
+                return 0
+            P = P * self.mdl[word]
+        return P
 
-        return ...
-        
     def sample(self, M):
         """
         sample selects tokens from the language model of length M, returning
@@ -142,16 +157,17 @@ class UniformLM(object):
         True
         """
 
-        return ...
+        return ' '.join(list(self.mdl.sample(M, replace=True,
+                                             weights=self.mdl).index)).strip()
 
-            
+
 # ---------------------------------------------------------------------
 # Question #4
 # ---------------------------------------------------------------------
 
 
 class UnigramLM(object):
-    
+
     def __init__(self, tokens):
         """
         Initializes a Unigram languange model using a
@@ -160,7 +176,7 @@ class UnigramLM(object):
         self.mdl.
         """
         self.mdl = self.train(tokens)
-    
+
     def train(self, tokens):
         """
         Trains a unigram language model given a list of tokens.
@@ -179,8 +195,9 @@ class UnigramLM(object):
         True
         """
 
-        return ...
-    
+        return pd.Series(tokens).value_counts() / pd.Series(tokens). \
+            value_counts().sum()
+
     def probability(self, words):
         """
         probability gives the probabiliy a sequence of words
@@ -198,9 +215,14 @@ class UnigramLM(object):
         >>> np.isclose(p, 0.12244897959, atol=0.0001)
         True
         """
+        P = 1
+        for word in words:
+            if word not in self.mdl.index:
+                return 0
+            P = P * self.mdl[word]
 
-        return ...
-        
+        return P
+
     def sample(self, M):
         """
         sample selects tokens from the language model of length M, returning
@@ -218,15 +240,16 @@ class UnigramLM(object):
         True
         """
 
-        return ...
-        
-    
+        return ' '.join(list(self.mdl.sample(M, replace=True,
+                                             weights=self.mdl).index)).strip()
+
+
 # ---------------------------------------------------------------------
 # Question #5,6,7,8
 # ---------------------------------------------------------------------
 
 class NGramLM(object):
-    
+
     def __init__(self, N, tokens):
         """
         Initializes a N-gram languange model using a
@@ -246,7 +269,7 @@ class NGramLM(object):
         elif N == 2:
             self.prev_mdl = UnigramLM(tokens)
         else:
-            mdl = NGramLM(N-1, tokens)
+            mdl = NGramLM(N - 1, tokens)
             self.prev_mdl = mdl
 
     def create_ngrams(self, tokens):
@@ -266,9 +289,23 @@ class NGramLM(object):
         >>> out[2]
         ('two', 'three')
         """
-        
-        return ...
-        
+        Ngram_list = []
+
+        for i in range(len(tokens)):
+            if tokens[0] == '\x02':
+                Ngram = []
+                if i < self.N - 1:
+                    continue
+                for j in range(len(tokens)):
+                    if i - self.N < j <= i:
+                        Ngram.append(tokens[j])
+
+                Ngram_list.append(tuple(Ngram))
+                if tokens[i] == '\x03':
+                    break
+
+        return Ngram_list
+
     def train(self, ngrams):
         """
         Trains a n-gram language model given a list of tokens.
@@ -285,20 +322,30 @@ class NGramLM(object):
         True
         """
 
+        def n_1gram(tup):
+            minus_one = []
+            for i in range(len(tup) - 1):
+                minus_one.append(tup[i])
+            return tuple(minus_one)
+
+        ngram = pd.Series(ngrams)
+        n1gram = pd.Series(ngrams).apply(n_1gram)
+        df = pd.DataFrame({'ngram': ngram, 'n1gram': n1gram})
+
         # ngram counts C(w_1, ..., w_n)
-        ...
+        n_counts = df.groupby('ngram')['ngram'].transform('count')
+
         # n-1 gram counts C(w_1, ..., w_(n-1))
-        ...
+        n1_counts = df.groupby('n1gram')['n1gram'].transform('count')
 
         # Create the conditional probabilities
-        ...
-        
+        cond_probs = n_counts / n1_counts
+
         # Put it all together
+        df['prob'] = cond_probs
 
-        ...
+        return df
 
-        return ...
-    
     def probability(self, words):
         """
         probability gives the probabiliy a sequence of words
@@ -316,8 +363,39 @@ class NGramLM(object):
         >>> bigrams.probability('one two five'.split()) == 0
         True
         """
+        words = words[::-1]
+        model = self
+        N = self.N
+        P = 1.0
+        for i in range(len(words)):
+            gram = []
+            mdl = model.mdl
+            if i > self.N - 1:  # N-1
+                N = N - 1  # N= N-1
+                model = self.prev_mdl
+                mdl = model.mdl
+                if N == 1:
+                    mdl = pd.DataFrame(mdl).rename(
+                        columns={0: 'prob'}).reset_index().rename(
+                        columns={'index': 'ngram'})
+                    for j in range(N):
+                        gram.append(words[i + j])
 
-        return ...
+                    P = P * mdl[(mdl['ngram'] == tuple(gram)[0])]['prob'].max()
+                else:
+                    for j in range(N):
+                        gram.append(words[i + j])
+                    P = P * mdl[(mdl['ngram'] == tuple(gram)[::-1]) & (
+                                mdl['n1gram'] == tuple(gram)[::-1][:-1])][
+                        'prob'].max()
+            else:
+                for j in range(N):  # N
+                    gram.append(words[i + j])  # N
+                P = P * mdl[(mdl['ngram'] == tuple(gram)[::-1]) & (
+                            mdl['n1gram'] == tuple(gram)[::-1][:-1])][
+                    'prob'].max()
+
+        return P
 
     def sample(self, M):
         """
@@ -338,11 +416,12 @@ class NGramLM(object):
 
         # Use a helper function to generate sample tokens of length `length`
         ...
-        
+
         # Transform the tokens to strings
         ...
 
-        return ...
+        return ' '.join(list(self.mdl.sample(M, replace=True,
+                                             weights=self.mdl).index)).strip()
 
 
 # ---------------------------------------------------------------------
@@ -370,12 +449,12 @@ def check_for_graded_elements():
     >>> check_for_graded_elements()
     True
     """
-    
+
     for q, elts in GRADED_FUNCTIONS.items():
         for elt in elts:
             if elt not in globals():
                 stmt = "YOU CHANGED A QUESTION THAT SHOULDN'T CHANGE! \
-                In %s, part %s is missing" %(q, elt)
+                In %s, part %s is missing" % (q, elt)
                 raise Exception(stmt)
 
     return True
